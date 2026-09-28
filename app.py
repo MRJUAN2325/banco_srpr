@@ -1,13 +1,13 @@
 import json
 import os
 from datetime import datetime
+import pandas as pd
 import streamlit as st
 
 DATA_FILE = "banco_srpr.json"
 
 
 def cargar_datos():
-  # Estructura base obligatoria con el Banco Central garantizado
   datos_por_defecto = {
       "usuarios": {
           "banco srpr": {
@@ -20,7 +20,7 @@ def cargar_datos():
       "transacciones": [{
           "fecha": str(datetime.now().date()),
           "descripcion": (
-              "Fundación del Banco Central de la SRPR con fondos imperiales"
+              "Fundación del Banco SRPR con fondos imperiales"
           ),
           "monto": 1000,
       }],
@@ -33,7 +33,6 @@ def cargar_datos():
   try:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       data = json.load(f)
-      # Asegurar formato base por si faltaban claves
       if "usuarios" not in data:
         data["usuarios"] = {}
       if "favores" not in data:
@@ -41,15 +40,23 @@ def cargar_datos():
       if "transacciones" not in data:
         data["transacciones"] = []
 
-      # Forzar que la cuenta del Banco Central exista siempre y tenga el PIN 2325
-      data["usuarios"]["banco central de la srpr"] = {
+      saldo_previo = (
+          data["usuarios"].get("banco srpr", {}).get("oinkalias", 1000)
+      )
+      creado_previo = data["usuarios"].get("banco srpr", {}).get(
+          "creado", str(datetime.now().date())
+      )
+
+      if "banco central de la srpr" in data["usuarios"]:
+        saldo_previo = data["usuarios"]["banco central de la srpr"].get(
+            "oinkalias", saldo_previo
+        )
+        del data["usuarios"]["banco central de la srpr"]
+
+      data["usuarios"]["banco srpr"] = {
           "pin": "2325",
-          "oinkalias": data["usuarios"]
-          .get("banco central de la srpr", {})
-          .get("oinkalias", 1000),
-          "creado": data["usuarios"]
-          .get("banco central de la srpr", {})
-          .get("creado", str(datetime.now().date())),
+          "oinkalias": saldo_previo,
+          "creado": creado_previo,
       }
       guardar_datos(data)
       return data
@@ -66,7 +73,7 @@ def guardar_datos(datos):
 db = cargar_datos()
 
 st.set_page_config(
-    page_title="Banco Central - SRPR", page_icon="🏛️", layout="wide"
+    page_title="Banco SRPR", page_icon="🏛️", layout="wide"
 )
 
 if "usuario_actual" not in st.session_state:
@@ -76,7 +83,7 @@ if "usuario_actual" not in st.session_state:
 # PANTALLA DE ACCESO (SI NO HAY SESIÓN)
 # ==========================================
 if not st.session_state.usuario_actual:
-  st.title("🏛️ Banco Central de la SRPR")
+  st.title("🏛️ Banco SRPR")
   st.markdown(
       "*Segunda República de Pamplona Románica — Identifícate, ciudadano.*"
   )
@@ -144,12 +151,12 @@ if not st.session_state.usuario_actual:
 else:
   user = st.session_state.usuario_actual
   saldo_actual = db["usuarios"][user]["oinkalias"]
-  es_admin = user == "banco central de la srpr"
+  es_admin = user == "banco srpr"
 
   # Cabecera de Estado Superior
   col_head1, col_head2, col_head3 = st.columns([3, 1, 1])
   with col_head1:
-    st.title("🏛️ Banco Central de la SRPR")
+    st.title("🏛️ Banco SRPR")
     if es_admin:
       st.markdown(
           "🛡️ *Modo Administrador Imperial / Tesorería del Estado activo.*"
@@ -164,18 +171,22 @@ else:
 
   st.markdown("---")
 
-  # Pestañas
+  # Pestañas con la nueva sección incorporada
   if es_admin:
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🤝 Mercado de Favores",
         "🛡️ Panel de Administrador",
+        "📈 Gráfico de la Economía",
         "📜 Historial",
         "⚙️ Ajustes de Cuenta",
     ])
   else:
-    tab1, tab2, tab3 = st.tabs(
-        ["🤝 Mercado de Favores", "📜 Historial", "⚙️ Ajustes de Cuenta"]
-    )
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🤝 Mercado de Favores",
+        "📈 Gráfico de la Economía",
+        "📜 Historial",
+        "⚙️ Ajustes de Cuenta",
+    ])
 
   # --- PESTAÑA 1: MERCADO DE FAVORES ---
   with tab1:
@@ -307,8 +318,48 @@ else:
             f" desde: {info['creado']}"
         )
 
+  # --- PESTAÑA: GRÁFICO DE LA ECONOMÍA ---
+  target_tab_grafico = tab3 if es_admin else tab2
+  with target_tab_grafico:
+    st.header("📈 Gráfico de la Economía de la SRPR")
+    st.markdown(
+        "Evolución en tiempo real de los fondos gestionados por el Banco"
+        " SRPR."
+    )
+
+    # Calculamos la evolución histórica del saldo del banco a partir de las transacciones
+    # Partimos de los 1000 iniciales y sumamos/restamos los montos de cada transacción registrada
+    historial_economia = []
+    saldo_calculado = 1000  # Base inicial del banco
+
+    # Añadimos un punto inicial ficticio de creación si hay base
+    historial_economia.append({"Paso": 0, "Tesoro (Oinkalias)": 1000})
+
+    for idx, t in enumerate(db["transacciones"]):
+      monto = t.get("monto", 0)
+      # Asumimos que las transacciones suman al tesoro imperial (o se adaptan según el flujo)
+      saldo_calculado += monto
+      historial_economia.append({
+          "Paso": idx + 1,
+          "Tesoro (Oinkalias)": saldo_calculado,
+      })
+
+    if len(historial_economia) > 1:
+      df_eco = pd.DataFrame(historial_economia)
+      df_eco.set_index("Paso", inplace=True)
+      st.line_chart(df_eco)
+    else:
+      # Si solo hay el punto inicial
+      data_inicial = pd.DataFrame({"Tesoro (Oinkalias)": [1000]}, index=[0])
+      st.line_chart(data_inicial)
+
+    st.info(
+        f"💡 Capital actual registrado en las arcas del Banco SRPR:"
+        f" **{db['usuarios']['banco srpr']['oinkalias']} 🐖**"
+    )
+
   # --- PESTAÑA DE HISTORIAL ---
-  target_tab_historial = tab3 if es_admin else tab2
+  target_tab_historial = tab4 if es_admin else tab3
   with target_tab_historial:
     st.header("📜 Historial de Transacciones")
     st.markdown("Registro oficial de movimientos y favores de la República.")
@@ -323,7 +374,7 @@ else:
       st.info("Aún no hay transacciones registradas en el imperio.")
 
   # --- PESTAÑA DE AJUSTES ---
-  target_tab_ajustes = tab4 if es_admin else tab3
+  target_tab_ajustes = tab5 if es_admin else tab4
   with target_tab_ajustes:
     st.header("⚙️ Ajustes de Cuenta")
     st.write(f"**Usuario:** {user}")
