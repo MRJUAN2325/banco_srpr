@@ -8,11 +8,10 @@ DATA_FILE = "banco_srpr.json"
 
 def cargar_datos():
   if not os.path.exists(DATA_FILE):
-    # Creamos de inicio la cuenta oficial del Banco Central y el registro limpio
     datos_iniciales = {
         "usuarios": {
             "banco central de la srpr": {
-                "pin": "srpr2026",
+                "pin": "2325",
                 "oinkalias": 1000,  # Tesorería imperial inicial
                 "creado": str(datetime.now().date()),
             }
@@ -31,20 +30,24 @@ def cargar_datos():
   try:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       data = json.load(f)
-      # Asegurar que la cuenta del banco siempre exista aunque el archivo ya estuviera creado
+      # Asegurar que la cuenta del banco exista y tenga el PIN correcto de 2325
       if "banco central de la srpr" not in data["usuarios"]:
         data["usuarios"]["banco central de la srpr"] = {
-            "pin": "srpr2026",
+            "pin": "2325",
             "oinkalias": 1000,
             "creado": str(datetime.now().date()),
         }
+        guardar_datos(data)
+      else:
+        # Actualizar pin por si acaso
+        data["usuarios"]["banco central de la srpr"]["pin"] = "2325"
         guardar_datos(data)
       return data
   except Exception:
     return {
         "usuarios": {
             "banco central de la srpr": {
-                "pin": "srpr2026",
+                "pin": "2325",
                 "oinkalias": 1000,
                 "creado": str(datetime.now().date()),
             }
@@ -273,9 +276,7 @@ else:
       if db["favores"]:
         st.markdown("### Listado Completo de Favores en Curso y Finalizados:")
         for f in db["favores"]:
-          color_estado = (
-              "🟢" if f["estado"] == "Completado" else "🟡"
-          )  # Verde si completado, amarillo si pendiente
+          color_estado = "🟢" if f["estado"] == "Completado" else "🟡"
           st.markdown(
               f"{color_estado} **ID #{f['id']}** | **De:** `{f['solicitante']}`"
               f" ➔ **Para:** `{f['destinatario']}` | **Favor:**"
