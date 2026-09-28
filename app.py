@@ -26,8 +26,22 @@ def cargar_datos():
     }
     guardar_datos(datos_iniciales)
     return datos_iniciales
-  with open(DATA_FILE, "r", encoding="utf-8") as f:
-    return json.load(f)
+  try:
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+      return json.load(f)
+  except Exception:
+    # Si el archivo se corrompe por algún motivo, lo reiniciamos limpio
+    return {
+        "usuarios": {
+            "Juan": {
+                "pin": "1234",
+                "oinkalias": 20,
+                "creado": str(datetime.now().date()),
+            }
+        },
+        "favores": [],
+        "transacciones": [],
+    }
 
 
 def guardar_datos(datos):
@@ -59,13 +73,20 @@ if "usuario_actual" not in st.session_state:
 
 if opcion_sesion == "Crear Cuenta Nueva":
   st.sidebar.subheader("Registro de Ciudadano")
-  nuevo_nombre = st.sidebar.text_input("Nombre de la cuenta / Alias")
-  nuevo_pin = st.sidebar.text_input("PIN de seguridad", type="password")
+  nuevo_nombre = st.sidebar.text_input(
+      "Nombre de la cuenta / Alias"
+  ).strip()  # .strip() elimina espacios accidentales
+  nuevo_pin = st.sidebar.text_input(
+      "PIN de seguridad", type="password"
+  ).strip()
+
   if st.sidebar.button("Registrarse en la República"):
     if not nuevo_nombre or not nuevo_pin:
       st.sidebar.error("Rellena todos los campos, cojones.")
     elif nuevo_nombre in db["usuarios"]:
-      st.sidebar.error("Ese nombre de cuenta ya existe.")
+      st.sidebar.error(
+          f"¡El usuario '{nuevo_nombre}' ya existe! Prueba a iniciar sesión."
+      )
     else:
       db["usuarios"][nuevo_nombre] = {
           "pin": nuevo_pin,
@@ -74,22 +95,24 @@ if opcion_sesion == "Crear Cuenta Nueva":
       }
       guardar_datos(db)
       st.sidebar.success(
-          f"¡Cuenta creada! Has recibido tus 10 🐖 oinkalias de subsidio inicial."
+          f"¡Cuenta creada con éxito, {nuevo_nombre}! Has recibido tus 10 🐖"
+          " oinkalias iniciales."
       )
 
 elif opcion_sesion == "Iniciar Sesión":
   st.sidebar.subheader("Login de Cuenta")
-  usuario_input = st.sidebar.text_input("Nombre de cuenta")
-  pin_input = st.sidebar.text_input("PIN", type="password")
+  usuario_input = st.sidebar.text_input("Nombre de cuenta").strip()
+  pin_input = st.sidebar.text_input("PIN", type="password").strip()
+
   if st.sidebar.button("Entrar"):
-    if (
-        usuario_input in db["usuarios"]
-        and db["usuarios"][usuario_input]["pin"] == pin_input
-    ):
+    if usuario_input not in db["usuarios"]:
+      st.sidebar.error("Ese nombre de cuenta no existe en la República.")
+    elif db["usuarios"][usuario_input]["pin"] != pin_input:
+      st.sidebar.error("PIN incorrecto, espía de los enemigos.")
+    else:
       st.session_state.usuario_actual = usuario_input
       st.sidebar.success(f"Bienvenido de nuevo, {usuario_input}.")
-    else:
-      st.sidebar.error("Usuario o PIN incorrectos.")
+      st.rerun()
 
 # Si hay sesión iniciada, mostrar el panel principal del banco
 if st.session_state.usuario_actual:
@@ -137,7 +160,6 @@ if st.session_state.usuario_actual:
           elif db["usuarios"][user]["oinkalias"] < pago_oinkalias:
             st.error("No tienes suficientes oinkalias, ¡estás en bancarrota!")
           else:
-            # Descontar temporalmente las oinkalias al que pide (depósito en garantía)
             db["usuarios"][user]["oinkalias"] -= pago_oinkalias
 
             nuevo_favor = {
@@ -146,7 +168,7 @@ if st.session_state.usuario_actual:
                 "destinatario": destinatario,
                 "descripcion": descripcion_favor,
                 "monto": int(pago_oinkalias),
-                "estado": "Pendiente",  # Pendiente, TerminadoSolicitante, TerminadoDestinatario, Completado
+                "estado": "Pendiente",
                 "fecha": str(datetime.now().date()),
             }
             db["favores"].append(nuevo_favor)
@@ -159,7 +181,6 @@ if st.session_state.usuario_actual:
     with col2:
       st.subheader("📥 Gestión de Favores")
 
-      # Filtrar favores del usuario
       mis_favores_enviados = [
           f for f in db["favores"] if f["solicitante"] == user
       ]
@@ -178,13 +199,13 @@ if st.session_state.usuario_actual:
         if f["estado"] == "Pendiente" and st.button(
             f"Cancelar Favor #{f['id']}", key=f"cancel_{f['id']}"
         ):
-          db["usuarios"][user]["oinkalias"] += f["monto"]  # Devolver dinero
+          db["usuarios"][user]["oinkalias"] += f["monto"]
           db["favores"] = [x for x in db["favores"] if x["id"] != f["id"]]
           guardar_datos(db)
           st.success("Favor cancelado y oinkalias devueltas.")
           st.rerun()
 
-      veg = st.markdown("### Favores que te han solicitado a ti:")
+      st.markdown("### Favores que te han solicitado a ti:")
       if not mis_favores_recibidos:
         st.info("Nadie te ha pedido favores todavía.")
       for f in mis_favores_recibidos:
@@ -197,17 +218,12 @@ if st.session_state.usuario_actual:
               f"Marcar como Terminado (Aceptar) #{f['id']}",
               key=f"term_{f['id']}",
           ):
-            # Al completarse, se pagan las oinkalias al destinatario que hizo el favor
             db["usuarios"][user]["oinkalias"] += f["monto"]
-
-            # Registrar transacción en la macroeconomía
             db["transacciones"].append({
                 "fecha": str(datetime.now().date()),
                 "monto_total": f["monto"],
                 "tipo": "favor_completado",
             })
-
-            # Actualizar estado a completado
             for item in db["favores"]:
               if item["id"] == f["id"]:
                 item["estado"] = "Completado"
@@ -224,13 +240,11 @@ if st.session_state.usuario_actual:
 
     if db["transacciones"]:
       df_trans = pd.DataFrame(db["transacciones"])
-      # Agrupar por fecha
       df_grouped = df_trans.groupby("fecha")["monto_total"].sum().reset_index()
       df_grouped.columns = ["Fecha", "Volumen de Oinkalias Movidas"]
 
       st.line_chart(df_grouped.set_index("Fecha"))
 
-      # Indicador verde o rojo simple
       total_movido = sum([t["monto_total"] for t in db["transacciones"]])
       if total_movido >= 10:
         st.success(
@@ -251,7 +265,7 @@ if st.session_state.usuario_actual:
     st.write(f"**Fecha de alta en la SRPR:** {db['usuarios'][user]['creado']}")
     nuevo_pin_cambio = st.text_input(
         "Cambiar PIN de seguridad", type="password"
-    )
+    ).strip()
     if st.button("Actualizar PIN"):
       if nuevo_pin_cambio:
         db["usuarios"][user]["pin"] = nuevo_pin_cambio
