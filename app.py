@@ -1,7 +1,6 @@
 import json
 import os
 from datetime import datetime
-import pandas as pd
 import streamlit as st
 
 DATA_FILE = "banco_srpr.json"
@@ -9,33 +8,44 @@ DATA_FILE = "banco_srpr.json"
 
 def cargar_datos():
   if not os.path.exists(DATA_FILE):
+    # Creamos de inicio la cuenta oficial del Banco Central y el registro limpio
     datos_iniciales = {
         "usuarios": {
-            "Juan": {
-                "pin": "1234",
-                "oinkalias": 20,
+            "banco central de la srpr": {
+                "pin": "srpr2026",
+                "oinkalias": 1000,  # Tesorería imperial inicial
                 "creado": str(datetime.now().date()),
             }
         },
         "favores": [],
         "transacciones": [{
             "fecha": str(datetime.now().date()),
-            "monto_total": 5,
-            "tipo": "inicio",
+            "descripcion": (
+                "Fundación del Banco Central de la SRPR con fondos imperiales"
+            ),
+            "monto": 1000,
         }],
     }
     guardar_datos(datos_iniciales)
     return datos_iniciales
   try:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-      return json.load(f)
+      data = json.load(f)
+      # Asegurar que la cuenta del banco siempre exista aunque el archivo ya estuviera creado
+      if "banco central de la srpr" not in data["usuarios"]:
+        data["usuarios"]["banco central de la srpr"] = {
+            "pin": "srpr2026",
+            "oinkalias": 1000,
+            "creado": str(datetime.now().date()),
+        }
+        guardar_datos(data)
+      return data
   except Exception:
-    # Si el archivo se corrompe por algún motivo, lo reiniciamos limpio
     return {
         "usuarios": {
-            "Juan": {
-                "pin": "1234",
-                "oinkalias": 20,
+            "banco central de la srpr": {
+                "pin": "srpr2026",
+                "oinkalias": 1000,
                 "creado": str(datetime.now().date()),
             }
         },
@@ -49,91 +59,111 @@ def guardar_datos(datos):
     json.dump(datos, f, ensure_ascii=False, indent=4)
 
 
-# Cargar base de datos del imperio
 db = cargar_datos()
 
 st.set_page_config(
     page_title="Banco Central - SRPR", page_icon="🏛️", layout="wide"
 )
 
-st.title("🏛️ Banco Central de la SRPR")
-st.markdown(
-    "*Segunda República de Pamplona Románica — Sistema Económico y de"
-    " Favores*"
-)
-
-# Sidebar: Gestión de Sesión / Cuentas
-st.sidebar.header("🔐 Acceso Imperial")
-opcion_sesion = st.sidebar.radio(
-    "Selecciona una opción:", ["Iniciar Sesión", "Crear Cuenta Nueva"]
-)
-
 if "usuario_actual" not in st.session_state:
   st.session_state.usuario_actual = None
 
-if opcion_sesion == "Crear Cuenta Nueva":
-  st.sidebar.subheader("Registro de Ciudadano")
-  nuevo_nombre = st.sidebar.text_input(
-      "Nombre de la cuenta / Alias"
-  ).strip()  # .strip() elimina espacios accidentales
-  nuevo_pin = st.sidebar.text_input(
-      "PIN de seguridad", type="password"
-  ).strip()
+# ==========================================
+# PANTALLA DE ACCESO (SI NO HAY SESIÓN)
+# ==========================================
+if not st.session_state.usuario_actual:
+  st.title("🏛️ Banco Central de la SRPR")
+  st.markdown(
+      "*Segunda República de Pamplona Románica — Identifícate, ciudadano.*"
+  )
+  st.markdown("---")
 
-  if st.sidebar.button("Registrarse en la República"):
-    if not nuevo_nombre or not nuevo_pin:
-      st.sidebar.error("Rellena todos los campos, cojones.")
-    elif nuevo_nombre in db["usuarios"]:
-      st.sidebar.error(
-          f"¡El usuario '{nuevo_nombre}' ya existe! Prueba a iniciar sesión."
-      )
-    else:
-      db["usuarios"][nuevo_nombre] = {
-          "pin": nuevo_pin,
-          "oinkalias": 10,  # 10 oinkalias de inicio gratis
-          "creado": str(datetime.now().date()),
-      }
-      guardar_datos(db)
-      st.sidebar.success(
-          f"¡Cuenta creada con éxito, {nuevo_nombre}! Has recibido tus 10 🐖"
-          " oinkalias iniciales."
-      )
+  col_acc1, col_acc2 = st.columns(2)
 
-elif opcion_sesion == "Iniciar Sesión":
-  st.sidebar.subheader("Login de Cuenta")
-  usuario_input = st.sidebar.text_input("Nombre de cuenta").strip()
-  pin_input = st.sidebar.text_input("PIN", type="password").strip()
+  with col_acc1:
+    st.subheader("🔐 Iniciar Sesión")
+    with st.form("form_login"):
+      usuario_input = st.text_input("Nombre de cuenta (minúsculas)").strip().lower()
+      pin_input = st.text_input("PIN de seguridad", type="password").strip()
+      btn_login = st.form_submit_button("Entrar al Imperio")
 
-  if st.sidebar.button("Entrar"):
-    if usuario_input not in db["usuarios"]:
-      st.sidebar.error("Ese nombre de cuenta no existe en la República.")
-    elif db["usuarios"][usuario_input]["pin"] != pin_input:
-      st.sidebar.error("PIN incorrecto, espía de los enemigos.")
-    else:
-      st.session_state.usuario_actual = usuario_input
-      st.sidebar.success(f"Bienvenido de nuevo, {usuario_input}.")
-      st.rerun()
+      if btn_login:
+        if usuario_input not in db["usuarios"]:
+          st.error("Ese nombre de cuenta no existe en la República.")
+        elif db["usuarios"][usuario_input]["pin"] != pin_input:
+          st.error("PIN incorrecto.")
+        else:
+          st.session_state.usuario_actual = usuario_input
+          st.rerun()
 
-# Si hay sesión iniciada, mostrar el panel principal del banco
-if st.session_state.usuario_actual:
+  with col_acc2:
+    st.subheader("📝 Crear Cuenta Nueva")
+    with st.form("form_registro"):
+      nuevo_nombre = st.text_input("Nuevo Alias (minúsculas)").strip().lower()
+      nuevo_pin = st.text_input("Nuevo PIN", type="password").strip()
+      btn_registro = st.form_submit_button("Registrarse (+10 🐖 gratis)")
+
+      if btn_registro:
+        if not nuevo_nombre or not nuevo_pin:
+          st.error("Rellena todos los campos.")
+        elif nuevo_nombre in db["usuarios"]:
+          st.error("Ese usuario ya existe. Inicia sesión.")
+        else:
+          db["usuarios"][nuevo_nombre] = {
+              "pin": nuevo_pin,
+              "oinkalias": 10,  # 10 oinkalias iniciales de subsidio
+              "creado": str(datetime.now().date()),
+          }
+          guardar_datos(db)
+          st.success(
+              "¡Cuenta creada con éxito! Ya puedes iniciar sesión a la"
+              " izquierda."
+          )
+
+# ==========================================
+# PANEL PRINCIPAL (CON SESIÓN INICIADA)
+# ==========================================
+else:
   user = st.session_state.usuario_actual
   saldo_actual = db["usuarios"][user]["oinkalias"]
+  es_admin = user == "banco central de la srpr"
 
-  st.sidebar.markdown("---")
-  st.sidebar.write(f"👤 **Conectado como:** `{user}`")
-  st.sidebar.write(f"🐖 **Saldo:** `{saldo_actual} Oinkalias`")
-  if st.sidebar.button("Cerrar Sesión"):
-    st.session_state.usuario_actual = None
-    st.rerun()
+  # Cabecera de Estado Superior
+  col_head1, col_head2, col_head3 = st.columns([3, 1, 1])
+  with col_head1:
+    st.title("🏛️ Banco Central de la SRPR")
+    if es_admin:
+      st.markdown(
+          "🛡️ *Modo Administrador Imperial / Tesorería del Estado activo.*"
+      )
+  with col_head2:
+    st.markdown(f"👤 **{user}**")
+    st.markdown(f"🐖 **{saldo_actual} Oinkalias**")
+  with col_head3:
+    if st.button("Cerrar Sesión"):
+      st.session_state.usuario_actual = None
+      st.rerun()
 
-  # Pestañas principales
-  tab1, tab2, tab3 = st.tabs(
-      ["🤝 Mercado de Favores", "📊 Economía & Gráficos", "⚙️ Ajustes de Cuenta"]
-  )
+  st.markdown("---")
 
+  # Definir pestañas según si es admin o usuario normal
+  if es_admin:
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🤝 Mercado de Favores",
+        "🛡️ Panel de Administrador",
+        "📜 Auditoría Imperial",
+        "⚙️ Ajustes de Cuenta",
+    ])
+  else:
+    tab1, tab2, tab3 = st.tabs([
+        "🤝 Mercado de Favores",
+        "📜 Auditoría Imperial (Transacciones)",
+        "⚙️ Ajustes de Cuenta",
+    ])
+
+  # --- PESTAÑA 1: MERCADO DE FAVORES ---
   with tab1:
     st.header("Mercado de Favores Imperiales")
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -144,24 +174,25 @@ if st.session_state.usuario_actual:
             [u for u in db["usuarios"] if u != user],
         )
         descripcion_favor = st.text_area(
-            "Descripción del favor (ej: Préstame el compás a tercera hora)"
+            "Descripción del favor (ej: Préstame el compás)"
         )
         pago_oinkalias = st.number_input(
-            "Oinkalias ofrecidas como recompensa",
+            "Oinkalias ofrecidas",
             min_value=1,
             max_value=int(saldo_actual) if saldo_actual > 0 else 1,
             step=1,
         )
-        enviar_favor = st.form_submit_button("Enviar Solicitud de Favor")
+        enviar_favor = st.form_submit_button("Enviar Solicitud")
 
         if enviar_favor:
           if not destinatario:
-            st.error("No hay más usuarios registrados para pedir favores.")
+            st.error(
+                "No hay más usuarios registrados para asignarles favores."
+            )
           elif db["usuarios"][user]["oinkalias"] < pago_oinkalias:
-            st.error("No tienes suficientes oinkalias, ¡estás en bancarrota!")
+            st.error("No tienes suficientes oinkalias.")
           else:
-            db["usuarios"][user]["oinkalias"] -= pago_oinkalias
-
+            db["usuarios"][user]["oinkalias"] -= int(pago_oinkalias)
             nuevo_favor = {
                 "id": len(db["favores"]) + 1,
                 "solicitante": user,
@@ -173,14 +204,11 @@ if st.session_state.usuario_actual:
             }
             db["favores"].append(nuevo_favor)
             guardar_datos(db)
-            st.success(
-                "¡Favor enviado con éxito! Oinkalias retenidas en garantía."
-            )
+            st.success("¡Favor enviado! Oinkalias retenidas en garantía.")
             st.rerun()
 
     with col2:
       st.subheader("📥 Gestión de Favores")
-
       mis_favores_enviados = [
           f for f in db["favores"] if f["solicitante"] == user
       ]
@@ -188,83 +216,110 @@ if st.session_state.usuario_actual:
           f for f in db["favores"] if f["destinatario"] == user
       ]
 
-      st.markdown("### Favores que tú has solicitado:")
+      st.markdown("### Tus solicitudes enviadas:")
       if not mis_favores_enviados:
-        st.info("No has solicitado ningún favor.")
+        st.info("Ninguna solicitud activa.")
       for f in mis_favores_enviados:
         st.markdown(
             f"**Para:** {f['destinatario']} | **Qué:** {f['descripcion']} |"
-            f" **Recompensa:** {f['monto']} 🐖 | **Estado:** `{f['estado']}`"
+            f" **{f['monto']} 🐖** | Estado: `{f['estado']}`"
         )
         if f["estado"] == "Pendiente" and st.button(
-            f"Cancelar Favor #{f['id']}", key=f"cancel_{f['id']}"
+            f"Cancelar #{f['id']}", key=f"cancel_{f['id']}"
         ):
           db["usuarios"][user]["oinkalias"] += f["monto"]
           db["favores"] = [x for x in db["favores"] if x["id"] != f["id"]]
           guardar_datos(db)
-          st.success("Favor cancelado y oinkalias devueltas.")
+          st.success("Cancelado y oinkalias devueltas.")
           st.rerun()
 
-      st.markdown("### Favores que te han solicitado a ti:")
+      st.markdown("### Favores que te han pedido:")
       if not mis_favores_recibidos:
-        st.info("Nadie te ha pedido favores todavía.")
+        st.info("Nadie te ha pedido nada.")
       for f in mis_favores_recibidos:
         st.markdown(
             f"**De:** {f['solicitante']} | **Qué:** {f['descripcion']} |"
-            f" **Recompensa:** {f['monto']} 🐖 | **Estado:** `{f['estado']}`"
+            f" **{f['monto']} 🐖** | Estado: `{f['estado']}`"
         )
         if f["estado"] == "Pendiente":
           if st.button(
-              f"Marcar como Terminado (Aceptar) #{f['id']}",
-              key=f"term_{f['id']}",
+              f"Marcar Terminado (Cobrar) #{f['id']}", key=f"term_{f['id']}"
           ):
             db["usuarios"][user]["oinkalias"] += f["monto"]
             db["transacciones"].append({
                 "fecha": str(datetime.now().date()),
-                "monto_total": f["monto"],
-                "tipo": "favor_completado",
+                "descripcion": (
+                    f"Favor completado: '{f['descripcion']}' (De"
+                    f" {f['solicitante']} a {f['destinatario']})"
+                ),
+                "monto": f["monto"],
             })
             for item in db["favores"]:
               if item["id"] == f["id"]:
                 item["estado"] = "Completado"
             guardar_datos(db)
-            st.success(
-                "¡Favor completado! Las oinkalias han sido ingresadas en tu"
-                " cuenta."
-            )
+            st.success("¡Completado! Oinkalias cobradas con éxito.")
             st.rerun()
 
-  with tab2:
-    st.header("📊 Macroeconómica de la SRPR")
-    st.markdown("Flujo de riqueza diario basado en los favores realizados.")
+  # --- PESTAÑA DE ADMINISTRADOR (SOLO PARA BANCO CENTRAL) ---
+  if es_admin:
+    with tab2:
+      st.header("🛡️ Panel de Administrador Imperial")
+      st.markdown(
+          "Supervisión global de todos los favores y transacciones del"
+          " territorio de la SRPR."
+      )
+
+      if db["favores"]:
+        st.markdown("### Listado Completo de Favores en Curso y Finalizados:")
+        for f in db["favores"]:
+          color_estado = (
+              "🟢" if f["estado"] == "Completado" else "🟡"
+          )  # Verde si completado, amarillo si pendiente
+          st.markdown(
+              f"{color_estado} **ID #{f['id']}** | **De:** `{f['solicitante']}`"
+              f" ➔ **Para:** `{f['destinatario']}` | **Favor:**"
+              f" *{f['descripcion']}* | **Recompensa:** `{f['monto']} 🐖` |"
+              f" **Estado:** `{f['estado']}`"
+          )
+      else:
+        st.info(
+            "No hay ningún favor registrado en los archivos de la República."
+        )
+
+      st.markdown("---")
+      st.subheader("👥 Ciudadanos Registrados en la SRPR")
+      for ciudadano, info in db["usuarios"].items():
+        st.markdown(
+            f"- 👤 **{ciudadano}** | Saldo: `{info['oinkalias']} 🐖` | Miembro"
+            f" desde: {info['creado']}"
+        )
+
+  # --- PESTAÑA DE AUDITORÍA / CONTABILIDAD ---
+  target_tab_auditoria = tab3 if es_admin else tab2
+  with target_tab_auditoria:
+    st.header("📜 Auditoría Imperial de Transacciones")
+    st.markdown(
+        "Registro oficial de movimientos económicos y favores finiquitados en"
+        " la República."
+    )
 
     if db["transacciones"]:
-      df_trans = pd.DataFrame(db["transacciones"])
-      df_grouped = df_trans.groupby("fecha")["monto_total"].sum().reset_index()
-      df_grouped.columns = ["Fecha", "Volumen de Oinkalias Movidas"]
-
-      st.line_chart(df_grouped.set_index("Fecha"))
-
-      total_movido = sum([t["monto_total"] for t in db["transacciones"]])
-      if total_movido >= 10:
-        st.success(
-            "🟢 **Economía Próspera:** Los números están en verde. La República"
-            " fluye con fuerza."
-        )
-      else:
-        st.warning(
-            "🔴 **Alerta Económica:** Poco movimiento de favores. La economía"
-            " se estanca."
+      for t in reversed(db["transacciones"]):
+        st.markdown(
+            f"📅 **{t['fecha']}** — {t['descripcion']} `(+{t['monto']} 🐖)`"
         )
     else:
-      st.info("Aún no hay suficientes datos macroeconómicos registrados.")
+      st.info("Aún no hay transacciones registradas en el imperio.")
 
-  with tab3:
+  # --- PESTAÑA DE AJUSTES ---
+  target_tab_ajustes = tab4 if es_admin else tab3
+  with target_tab_ajustes:
     st.header("⚙️ Ajustes de Cuenta")
     st.write(f"**Usuario:** {user}")
-    st.write(f"**Fecha de alta en la SRPR:** {db['usuarios'][user]['creado']}")
+    st.write(f"**Fecha de alta:** {db['usuarios'][user]['creado']}")
     nuevo_pin_cambio = st.text_input(
-        "Cambiar PIN de seguridad", type="password"
+        "Nuevo PIN de seguridad", type="password"
     ).strip()
     if st.button("Actualizar PIN"):
       if nuevo_pin_cambio:
@@ -273,9 +328,3 @@ if st.session_state.usuario_actual:
         st.success("PIN actualizado correctamente.")
       else:
         st.error("Introduce un PIN válido.")
-
-else:
-  st.warning(
-      "⚠️ Por favor, inicia sesión o crea una cuenta en la barra lateral"
-      " izquierda para acceder al Banco Central de la SRPR."
-  )
