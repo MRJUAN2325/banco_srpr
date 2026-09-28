@@ -7,51 +7,55 @@ DATA_FILE = "banco_srpr.json"
 
 
 def cargar_datos():
+  # Estructura base obligatoria con el Banco Central garantizado
+  datos_por_defecto = {
+      "usuarios": {
+          "banco central de la srpr": {
+              "pin": "2325",
+              "oinkalias": 1000,
+              "creado": str(datetime.now().date()),
+          }
+      },
+      "favores": [],
+      "transacciones": [{
+          "fecha": str(datetime.now().date()),
+          "descripcion": (
+              "Fundación del Banco Central de la SRPR con fondos imperiales"
+          ),
+          "monto": 1000,
+      }],
+  }
+
   if not os.path.exists(DATA_FILE):
-    datos_iniciales = {
-        "usuarios": {
-            "banco srpr": {
-                "pin": "2325",
-                "oinkalias": 1000,
-                "creado": str(datetime.now().date()),
-            }
-        },
-        "favores": [],
-        "transacciones": [{
-            "fecha": str(datetime.now().date()),
-            "descripcion": (
-                "Fundación del Banco Central de la SRPR con fondos imperiales"
-            ),
-            "monto": 1000,
-        }],
-    }
-    guardar_datos(datos_iniciales)
-    return datos_iniciales
+    guardar_datos(datos_por_defecto)
+    return datos_por_defecto
+
   try:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       data = json.load(f)
-      if "banco central de la srpr" not in data["usuarios"]:
-        data["usuarios"]["banco central de la srpr"] = {
-            "pin": "2325",
-            "oinkalias": 1000,
-            "creado": str(datetime.now().date()),
-        }
-      else:
-        data["usuarios"]["banco central de la srpr"]["pin"] = "2325"
+      # Asegurar formato base por si faltaban claves
+      if "usuarios" not in data:
+        data["usuarios"] = {}
+      if "favores" not in data:
+        data["favores"] = []
+      if "transacciones" not in data:
+        data["transacciones"] = []
+
+      # Forzar que la cuenta del Banco Central exista siempre y tenga el PIN 2325
+      data["usuarios"]["banco central de la srpr"] = {
+          "pin": "2325",
+          "oinkalias": data["usuarios"]
+          .get("banco central de la srpr", {})
+          .get("oinkalias", 1000),
+          "creado": data["usuarios"]
+          .get("banco central de la srpr", {})
+          .get("creado", str(datetime.now().date())),
+      }
       guardar_datos(data)
       return data
   except Exception:
-    return {
-        "usuarios": {
-            "banco central de la srpr": {
-                "pin": "2325",
-                "oinkalias": 1000,
-                "creado": str(datetime.now().date()),
-            }
-        },
-        "favores": [],
-        "transacciones": [],
-    }
+    guardar_datos(datos_por_defecto)
+    return datos_por_defecto
 
 
 def guardar_datos(datos):
@@ -83,13 +87,22 @@ if not st.session_state.usuario_actual:
   with col_acc1:
     st.subheader("🔐 Iniciar Sesión")
     with st.form("form_login"):
-      usuario_input = st.text_input("Nombre de cuenta (minúsculas)").strip().lower()
+      usuario_input = (
+          st.text_input("Nombre de cuenta (minúsculas)")
+          .strip()
+          .lower()
+      )
       pin_input = st.text_input("PIN de seguridad", type="password").strip()
       btn_login = st.form_submit_button("Entrar al Imperio")
 
       if btn_login:
-        if usuario_input not in db["usuarios"]:
-          st.error("Ese nombre de cuenta no existe en la República.")
+        if not usuario_input or not pin_input:
+          st.error("Por favor, rellena todos los campos.")
+        elif usuario_input not in db["usuarios"]:
+          st.error(
+              f"La cuenta '{usuario_input}' no existe en la República."
+              " ¡Asegúrate de escribirla en minúsculas!"
+          )
         elif db["usuarios"][usuario_input]["pin"] != pin_input:
           st.error("PIN incorrecto.")
         else:
@@ -99,7 +112,9 @@ if not st.session_state.usuario_actual:
   with col_acc2:
     st.subheader("📝 Crear Cuenta Nueva")
     with st.form("form_registro"):
-      nuevo_nombre = st.text_input("Nuevo Alias (minúsculas)").strip().lower()
+      nuevo_nombre = (
+          st.text_input("Nuevo Alias (minúsculas)").strip().lower()
+      )
       nuevo_pin = st.text_input("Nuevo PIN", type="password").strip()
       btn_registro = st.form_submit_button("Registrarse (+10 🐖 gratis)")
 
@@ -107,7 +122,10 @@ if not st.session_state.usuario_actual:
         if not nuevo_nombre or not nuevo_pin:
           st.error("Rellena todos los campos.")
         elif nuevo_nombre in db["usuarios"]:
-          st.error("Ese usuario ya existe. Inicia sesión.")
+          st.error(
+              f"El usuario '{nuevo_nombre}' ya existe. Prueba a iniciar"
+              " sesión."
+          )
         else:
           db["usuarios"][nuevo_nombre] = {
               "pin": nuevo_pin,
@@ -115,7 +133,10 @@ if not st.session_state.usuario_actual:
               "creado": str(datetime.now().date()),
           }
           guardar_datos(db)
-          st.success("¡Cuenta creada con éxito! Ya puedes iniciar sesión.")
+          st.success(
+              "¡Cuenta creada con éxito! Ya puedes iniciar sesión en el panel"
+              " de la izquierda."
+          )
 
 # ==========================================
 # PANEL PRINCIPAL (CON SESIÓN INICIADA)
@@ -143,7 +164,7 @@ else:
 
   st.markdown("---")
 
-  # Pestañas con la sección "Historial" renombrada
+  # Pestañas
   if es_admin:
     tab1, tab2, tab3, tab4 = st.tabs([
         "🤝 Mercado de Favores",
