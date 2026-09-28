@@ -10,9 +10,9 @@ def cargar_datos():
   if not os.path.exists(DATA_FILE):
     datos_iniciales = {
         "usuarios": {
-            "banco central de la srpr": {
+            "banco srpr": {
                 "pin": "2325",
-                "oinkalias": 1000,  # Tesorería imperial inicial
+                "oinkalias": 1000,
                 "creado": str(datetime.now().date()),
             }
         },
@@ -30,18 +30,15 @@ def cargar_datos():
   try:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       data = json.load(f)
-      # Asegurar que la cuenta del banco exista y tenga el PIN correcto de 2325
       if "banco central de la srpr" not in data["usuarios"]:
         data["usuarios"]["banco central de la srpr"] = {
             "pin": "2325",
             "oinkalias": 1000,
             "creado": str(datetime.now().date()),
         }
-        guardar_datos(data)
       else:
-        # Actualizar pin por si acaso
         data["usuarios"]["banco central de la srpr"]["pin"] = "2325"
-        guardar_datos(data)
+      guardar_datos(data)
       return data
   except Exception:
     return {
@@ -114,14 +111,11 @@ if not st.session_state.usuario_actual:
         else:
           db["usuarios"][nuevo_nombre] = {
               "pin": nuevo_pin,
-              "oinkalias": 10,  # 10 oinkalias iniciales de subsidio
+              "oinkalias": 10,
               "creado": str(datetime.now().date()),
           }
           guardar_datos(db)
-          st.success(
-              "¡Cuenta creada con éxito! Ya puedes iniciar sesión a la"
-              " izquierda."
-          )
+          st.success("¡Cuenta creada con éxito! Ya puedes iniciar sesión.")
 
 # ==========================================
 # PANEL PRINCIPAL (CON SESIÓN INICIADA)
@@ -149,20 +143,18 @@ else:
 
   st.markdown("---")
 
-  # Definir pestañas según si es admin o usuario normal
+  # Pestañas con la sección "Historial" renombrada
   if es_admin:
     tab1, tab2, tab3, tab4 = st.tabs([
         "🤝 Mercado de Favores",
         "🛡️ Panel de Administrador",
-        "📜 Auditoría Imperial",
+        "📜 Historial",
         "⚙️ Ajustes de Cuenta",
     ])
   else:
-    tab1, tab2, tab3 = st.tabs([
-        "🤝 Mercado de Favores",
-        "📜 Auditoría Imperial (Transacciones)",
-        "⚙️ Ajustes de Cuenta",
-    ])
+    tab1, tab2, tab3 = st.tabs(
+        ["🤝 Mercado de Favores", "📜 Historial", "⚙️ Ajustes de Cuenta"]
+    )
 
   # --- PESTAÑA 1: MERCADO DE FAVORES ---
   with tab1:
@@ -189,9 +181,7 @@ else:
 
         if enviar_favor:
           if not destinatario:
-            st.error(
-                "No hay más usuarios registrados para asignarles favores."
-            )
+            st.error("No hay más usuarios registrados para asignar favores.")
           elif db["usuarios"][user]["oinkalias"] < pago_oinkalias:
             st.error("No tienes suficientes oinkalias.")
           else:
@@ -264,7 +254,7 @@ else:
             st.success("¡Completado! Oinkalias cobradas con éxito.")
             st.rerun()
 
-  # --- PESTAÑA DE ADMINISTRADOR (SOLO PARA BANCO CENTRAL) ---
+  # --- PESTAÑA DE ADMINISTRADOR ---
   if es_admin:
     with tab2:
       st.header("🛡️ Panel de Administrador Imperial")
@@ -296,20 +286,18 @@ else:
             f" desde: {info['creado']}"
         )
 
-  # --- PESTAÑA DE AUDITORÍA / CONTABILIDAD ---
-  target_tab_auditoria = tab3 if es_admin else tab2
-  with target_tab_auditoria:
-    st.header("📜 Auditoría Imperial de Transacciones")
-    st.markdown(
-        "Registro oficial de movimientos económicos y favores finiquitados en"
-        " la República."
-    )
+  # --- PESTAÑA DE HISTORIAL ---
+  target_tab_historial = tab3 if es_admin else tab2
+  with target_tab_historial:
+    st.header("📜 Historial de Transacciones")
+    st.markdown("Registro oficial de movimientos y favores de la República.")
 
     if db["transacciones"]:
       for t in reversed(db["transacciones"]):
-        st.markdown(
-            f"📅 **{t['fecha']}** — {t['descripcion']} `(+{t['monto']} 🐖)`"
-        )
+        fecha_t = t.get("fecha", "Fecha desconocida")
+        desc_t = t.get("descripcion", "Movimiento sin descripción")
+        monto_t = t.get("monto", 0)
+        st.markdown(f"📅 **{fecha_t}** — {desc_t} `(+{monto_t} 🐖)`")
     else:
       st.info("Aún no hay transacciones registradas en el imperio.")
 
