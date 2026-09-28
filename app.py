@@ -10,7 +10,7 @@ def cargar_datos():
   # Estructura base obligatoria con el Banco Central garantizado
   datos_por_defecto = {
       "usuarios": {
-          "banco central de la srpr": {
+          "banco srpr": {
               "pin": "2325",
               "oinkalias": 1000,
               "creado": str(datetime.now().date()),
