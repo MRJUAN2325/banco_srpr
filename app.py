@@ -112,7 +112,15 @@ else:
     st.sidebar.write(f"Cuenta: **{user}**")
     st.sidebar.markdown("---")
     
-    menu = ["Mis Cuentas y Saldo", "Mis Tarjetas", "Realizar Transferencia", "Historial de Movimientos"]
+    menu = [
+        "Mis Cuentas y Saldo", 
+        "Mis Tarjetas", 
+        "Realizar Transferencia", 
+        "Envío Rápido (Bizum)", 
+        "Simulador de Préstamos", 
+        "Historial de Movimientos",
+        "Ayuda y Soporte"
+    ]
     if user_data["role"] == "admin":
         menu.append("Panel de Administración BSRPR")
         
@@ -148,10 +156,11 @@ else:
         if user_cards:
             st.subheader("Tarjetas Activas")
             for idx, card in enumerate(user_cards):
-                with st.expander(f"💳 {card['name']} ({card['type'].capitalize()}) - Saldo: {card['balance']:,d} Oincalias"):
+                card_bal = card.get('balance', 0)
+                with st.expander(f"💳 {card['name']} ({card['type'].capitalize()}) - Saldo: {card_bal:,d} Oincalias"):
                     st.write(f"**Número de Tarjeta:** **** **** **** {1000 + idx}")
                     st.write(f"**Tipo:** Tarjeta de Débito - {card['type'].capitalize()}")
-                    st.write(f"Saldo en Tarjeta::,d} Oincalias")
+                    st.write(f"**Saldo en Tarjeta:** {card_bal:,d} Oincalias")
                     
                     # Opciones para mover saldo entre cuenta principal y tarjeta
                     col_m1, col_m2 = st.columns(2)
@@ -164,19 +173,19 @@ else:
                                     st.error("No tienes suficiente saldo en tu cuenta principal.")
                                 else:
                                     user_data['balance'] -= amt_add
-                                    card['balance'] += amt_add
+                                    card['balance'] = card_bal + amt_add
                                     save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
                                     st.success(f"¡Has ingresado {amt_add:,d} oincalias a la tarjeta '{card['name']}'!")
                                     st.rerun()
                     with col_m2:
-                        with st.form(f" retirar_fund_{idx}"):
-                            amt_ret = st.number_input("Retirar oincalias de la tarjeta", min_value=1, max_value=int(card['balance']) if card['balance'] > 0 else 1, step=1, format="%d", key=f"ret_{idx}")
+                        with st.form(f"retirar_fund_{idx}"):
+                            amt_ret = st.number_input("Retirar oincalias de la tarjeta", min_value=1, max_value=int(card_bal) if card_bal > 0 else 1, step=1, format="%d", key=f"ret_{idx}")
                             btn_ret = st.form_submit_button("Retirar a Cuenta Principal")
                             if btn_ret:
-                                if card['balance'] < amt_ret:
+                                if card_bal < amt_ret:
                                     st.error("La tarjeta no tiene suficiente saldo.")
                                 else:
-                                    card['balance'] -= amt_ret
+                                    card['balance'] = card_bal - amt_ret
                                     user_data['balance'] += amt_ret
                                     save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
                                     st.success(f"¡Has retirado {amt_ret:,d} oincalias de la tarjeta a tu cuenta principal!")
@@ -217,7 +226,7 @@ else:
         
         with st.form("transfer_form"):
             recipient = st.selectbox("Cuenta Destinatario", [u for u in st.session_state.users.keys() if u != user])
-            amount = st.number_input("Cantidad en Oincalias", min_value=1, max_value=int(user_data["balance"]), step=1, format="%d")
+            amount = st.number_input("Cantidad en Oincalias", min_value=1, max_value=int(user_data["balance"]) if user_data["balance"] > 0 else 1, step=1, format="%d")
             concept = st.text_input("Concepto", "Pago / Transferencia")
             submit_transfer = st.form_submit_button("Confirmar Transferencia")
             
@@ -237,6 +246,59 @@ else:
                     save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
                     st.success(f"¡Transferencia de {amount:,d} oincalias realizada con éxito!")
 
+    # --- VISTA: ENVÍO RÁPIDO (BIZUM) ---
+    elif choice == "Envío Rápido (Bizum)":
+        st.title("⚡ Envío Rápido de Dinero")
+        st.write("Envía oincalias al instante utilizando el número de teléfono asociado de otro usuario.")
+        
+        with st.form("bizum_form"):
+            phone_dest = st.text_input("Teléfono del destinatario (ej. 600000000)")
+            amount_b = st.number_input("Cantidad a enviar", min_value=1, max_value=int(user_data["balance"]) if user_data["balance"] > 0 else 1, step=1, format="%d")
+            concept_b = st.text_input("Concepto", "Bizum rápido")
+            submit_bizum = st.form_submit_button("Enviar Dinero al Instante")
+            
+            if submit_bizum:
+                other_users = [u for u in st.session_state.users.keys() if u != user]
+                if not other_users:
+                    st.error("No hay otros usuarios registrados en el banco.")
+                elif user_data["balance"] < amount_b:
+                    st.error("Saldo insuficiente.")
+                else:
+                    recipient_b = other_users[0]
+                    st.session_state.users[user]["balance"] -= amount_b
+                    st.session_state.users[recipient_b]["balance"] += amount_b
+                    st.session_state.transactions.append({
+                        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "sender": user,
+                        "receiver": recipient_b,
+                        "amount": amount_b,
+                        "concept": f"[BIZUM] {concept_b} (Tel: {phone_dest})"
+                    })
+                    save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
+                    st.success(f"¡Bizum de {amount_b:,d} oincalias enviado al teléfono {phone_dest} con éxito!")
+
+    # --- VISTA: SIMULADOR DE PRÉSTAMOS ---
+    elif choice == "Simulador de Préstamos":
+        st.title("🏡 Simulador de Préstamos y Créditos")
+        st.write("Calcula tu cuota mensual estimada para financiar tus proyectos en Oincalias.")
+        
+        with st.form("loan_sim"):
+            loan_amount = st.number_input("Cantidad solicitada (Oincalias)", min_value=100, max_value=100000, value=5000, step=100)
+            loan_months = st.slider("Plazo en meses", min_value=6, max_value=72, value=24, step=6)
+            interest_rate = st.slider("Interés anual estimado (%)", min_value=1.0, max_value=15.0, value=5.5, step=0.5)
+            calc_btn = st.form_submit_button("Calcular Cuota")
+            
+            if calc_btn:
+                monthly_rate = (interest_rate / 100) / 12
+                if monthly_rate > 0:
+                    cuota = loan_amount * (monthly_rate * (1 + monthly_rate)**loan_months) / ((1 + monthly_rate)**loan_months - 1)
+                else:
+                    cuota = loan_amount / loan_months
+                
+                total_to_pay = cuota * loan_months
+                st.success(f"Cuota mensual estimada: **{cuota:,.2f} Oincalias / mes**")
+                st.info(f"Total a devolver al cabo de {loan_months} meses: **{total_to_pay:,.2f} Oincalias** (Intereses totales: {total_to_pay - loan_amount:,.2f} Oincalias)")
+
     # --- VISTA: HISTORIAL DE MOVIMIENTOS ---
     elif choice == "Historial de Movimientos":
         st.title("📊 Historial de Movimientos")
@@ -248,6 +310,84 @@ else:
         else:
             df_txs = pd.DataFrame(user_txs)
             st.dataframe(df_txs, use_container_width=True)
+
+    # --- VISTA: AYUDA Y SOPORTE CON ASISTENTE IA (GEMINI) ---
+    elif choice == "Ayuda y Soporte":
+        st.title("💬 Centro de Ayuda y Asistente IA (Banco SRPR)")
+        st.write("Consulta preguntas frecuentes o chatea con nuestro asistente inteligente con IA para resolver dudas sobre tu cuenta.")
+        
+        with st.expander("❓ Preguntas Frecuentes (FAQs)"):
+            st.write("**¿Cómo puedo recuperar mi contraseña?**\nPor motivos de seguridad de Banco SRPR, si olvidas tu contraseña debes ponerte en contacto con el administrador global (`bancospr`).")
+            st.write("**¿Tienen comisión las transferencias en Oincalias?**\nNo, todas las transferencias internas dentro de la red del Banco SRPR son totalmente gratuitas e instantáneas.")
+            st.write("**¿Cómo funcionan las tarjetas de débito?**\nPuedes crear tarjetas virtuales. Para gastar con ellas, transfiere saldo desde tu cuenta principal.")
+
+        st.markdown("---")
+        st.subheader("🤖 Asistente Virtual Inteligente (Gemini)")
+        st.write("Introduce tu clave API de Gemini para activar el chat con la inteligencia artificial que conoce el estado de tu cuenta.")
+
+        # Campo para configurar el Token de Gemini
+        gemini_api_key = st.text_input("Introduce tu Token / API Key de Gemini", type="password", value="")
+
+        if not gemini_api_key:
+            st.warning("⚠️ Introduce una clave API de Gemini válida arriba para habilitar el chat inteligente con tu cuenta.")
+        else:
+            # Importación segura de la librería de google-genai
+            try:
+                from google import genai
+                
+                # Inicializar historial del chat en session_state si no existe
+                if "gemini_chat_history" not in st.session_state:
+                    st.session_state.gemini_chat_history = []
+
+                # Mostrar historial de mensajes previos
+                for message in st.session_state.gemini_chat_history:
+                    with st.chat_message(message["role"]):
+                        st.markdown(message["content"])
+
+                # Entrada de chat del usuario
+                user_prompt = st.chat_input("Pregúntale algo a la IA sobre tu cuenta, saldo o tarjetas...")
+                
+                if user_prompt:
+                    # Añadir mensaje del usuario al historial
+                    st.session_state.gemini_chat_history.append({"role": "user", "content": user_prompt})
+                    with st.chat_message("user"):
+                        st.markdown(user_prompt)
+
+                    with st.chat_message("assistant"):
+                        with st.spinner("Analizando tu cuenta y consultando a Gemini..."):
+                            try:
+                                client = genai.Client(api_key=gemini_api_key)
+                                
+                                # Recopilar contexto detallado del usuario para que la IA sepa todo sobre su cuenta
+                                user_cards_info = st.session_state.cards.get(user, [])
+                                user_txs_info = [tx for tx in st.session_state.transactions if tx["sender"] == user or tx["receiver"] == user]
+                                
+                                context_system_prompt = f"""
+                                Eres el asistente virtual de atención al cliente de 'Banco SRPR (BSRPR)'.
+                                Estás hablando con el cliente autenticado:
+                                - Usuario: {user}
+                                - Nombre completo: {user_data['name']}
+                                - Rol: {user_data['role']}
+                                - Saldo en cuenta principal: {user_data['balance']} Oincalias
+                                - Tarjetas activas: {user_cards_info}
+                                - Últimas transacciones del usuario: {user_txs_info[-5:] if user_txs_info else 'Ninguna'}
+                                
+                                Ayuda al cliente amablemente con sus dudas sobre la web, sus saldos, transferencias o tarjetas basándote estrictamente en sus datos reales facilitados arriba.
+                                """
+                                
+                                # Llamada al modelo Gemini (usando flash por defecto)
+                                response = client.models.generate_content(
+                                    model="gemini-2.5-flash",
+                                    contents=f"{context_system_prompt}\n\nPregunta del usuario: {user_prompt}"
+                                )
+                                
+                                ai_response_text = response.text
+                                st.markdown(ai_response_text)
+                                st.session_state.gemini_chat_history.append({"role": "assistant", "content": ai_response_text})
+                            except Exception as e:
+                                st.error(f"Error al conectar con la API de Gemini: {e}")
+            except ImportError:
+                st.error("⚠️ La librería `google-genai` no está instalada en este entorno. Instálala ejecutando `pip install google-genai` en tu terminal.")
 
     # --- VISTA: PANEL DE ADMINISTRACIÓN BSRPR ---
     elif choice == "Panel de Administración BSRPR" and user_data["role"] == "admin":
