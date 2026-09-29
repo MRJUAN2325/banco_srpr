@@ -13,7 +13,7 @@ def load_data():
             return data.get("users", {}), data.get("transactions", []), data.get("cards", {})
     else:
         default_users = {
-            "bancosrpr": {"password": "2325", "name": "Banco srpr", "role": "admin", "balance": 1000}
+            "bancospr": {"password": "2325", "name": "Banco SRPR", "role": "admin", "balance": 1000}
         }
         default_txs = []
         default_cards = {}
@@ -115,8 +115,7 @@ else:
     menu = [
         "Mis Cuentas y Saldo", 
         "Mis Tarjetas", 
-        "Realizar Transferencia", 
-        "Envío Rápido (Bizum)", 
+        "Enviar Dinero", 
         "Simulador de Préstamos", 
         "Historial de Movimientos",
         "Ayuda y Soporte"
@@ -162,7 +161,6 @@ else:
                     st.write(f"**Tipo:** Tarjeta de Débito - {card['type'].capitalize()}")
                     st.write(f"**Saldo en Tarjeta:** {card_bal:,d} Oincalias")
                     
-                    # Opciones para mover saldo entre cuenta principal y tarjeta
                     col_m1, col_m2 = st.columns(2)
                     with col_m1:
                         with st.form(f"add_fund_{idx}"):
@@ -219,63 +217,64 @@ else:
                     st.success(f"¡Tarjeta '{card_name}' ({card_type}) activada con éxito!")
                     st.rerun()
 
-    # --- VISTA: REALIZAR TRANSFERENCIA ---
-    elif choice == "Realizar Transferencia":
-        st.title("💸 Nueva Transferencia")
-        st.write("Envía oincalias de forma inmediata y segura.")
+    # --- VISTA: ENVIAR DINERO (TRANSFERENCIA + BIZUM UNIFICADOS) ---
+    elif choice == "Enviar Dinero":
+        st.title("💸 Envío de Dinero")
+        st.write("Realiza transferencias ordinarias o envíos rápidos por Bizum desde un mismo lugar.")
         
-        with st.form("transfer_form"):
-            recipient = st.selectbox("Cuenta Destinatario", [u for u in st.session_state.users.keys() if u != user])
-            amount = st.number_input("Cantidad en Oincalias", min_value=1, max_value=int(user_data["balance"]) if user_data["balance"] > 0 else 1, step=1, format="%d")
-            concept = st.text_input("Concepto", "Pago / Transferencia")
-            submit_transfer = st.form_submit_button("Confirmar Transferencia")
-            
-            if submit_transfer:
-                if user_data["balance"] < amount:
-                    st.error("Saldo insuficiente.")
-                else:
-                    st.session_state.users[user]["balance"] -= amount
-                    st.session_state.users[recipient]["balance"] += amount
-                    st.session_state.transactions.append({
-                        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "sender": user,
-                        "receiver": recipient,
-                        "amount": amount,
-                        "concept": concept
-                    })
-                    save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
-                    st.success(f"¡Transferencia de {amount:,d} oincalias realizada con éxito!")
-
-    # --- VISTA: ENVÍO RÁPIDO (BIZUM) ---
-    elif choice == "Envío Rápido (Bizum)":
-        st.title("⚡ Envío Rápido de Dinero")
-        st.write("Envía oincalias al instante utilizando el número de teléfono asociado de otro usuario.")
+        envio_tipo = st.radio("Selecciona el método de envío:", ["Transferencia Bancaria", "Envío Rápido (Bizum)"])
+        st.markdown("---")
         
-        with st.form("bizum_form"):
-            phone_dest = st.text_input("Teléfono del destinatario (ej. 600000000)")
-            amount_b = st.number_input("Cantidad a enviar", min_value=1, max_value=int(user_data["balance"]) if user_data["balance"] > 0 else 1, step=1, format="%d")
-            concept_b = st.text_input("Concepto", "Bizum rápido")
-            submit_bizum = st.form_submit_button("Enviar Dinero al Instante")
-            
-            if submit_bizum:
-                other_users = [u for u in st.session_state.users.keys() if u != user]
-                if not other_users:
-                    st.error("No hay otros usuarios registrados en el banco.")
-                elif user_data["balance"] < amount_b:
-                    st.error("Saldo insuficiente.")
-                else:
-                    recipient_b = other_users[0]
-                    st.session_state.users[user]["balance"] -= amount_b
-                    st.session_state.users[recipient_b]["balance"] += amount_b
-                    st.session_state.transactions.append({
-                        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "sender": user,
-                        "receiver": recipient_b,
-                        "amount": amount_b,
-                        "concept": f"[BIZUM] {concept_b} (Tel: {phone_dest})"
-                    })
-                    save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
-                    st.success(f"¡Bizum de {amount_b:,d} oincalias enviado al teléfono {phone_dest} con éxito!")
+        if envio_tipo == "Transferencia Bancaria":
+            st.subheader("Nueva Transferencia")
+            with st.form("transfer_form"):
+                recipient = st.selectbox("Cuenta Destinatario", [u for u in st.session_state.users.keys() if u != user])
+                amount = st.number_input("Cantidad en Oincalias", min_value=1, max_value=int(user_data["balance"]) if user_data["balance"] > 0 else 1, step=1, format="%d")
+                concept = st.text_input("Concepto", "Pago / Transferencia")
+                submit_transfer = st.form_submit_button("Confirmar Transferencia")
+                
+                if submit_transfer:
+                    if user_data["balance"] < amount:
+                        st.error("Saldo insuficiente.")
+                    else:
+                        st.session_state.users[user]["balance"] -= amount
+                        st.session_state.users[recipient]["balance"] += amount
+                        st.session_state.transactions.append({
+                            "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "sender": user,
+                            "receiver": recipient,
+                            "amount": amount,
+                            "concept": concept
+                        })
+                        save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
+                        st.success(f"¡Transferencia de {amount:,d} oincalias realizada con éxito!")
+        else:
+            st.subheader("⚡ Envío Rápido (Bizum)")
+            with st.form("bizum_form"):
+                phone_dest = st.text_input("Teléfono del destinatario (ej. 600000000)")
+                amount_b = st.number_input("Cantidad a enviar", min_value=1, max_value=int(user_data["balance"]) if user_data["balance"] > 0 else 1, step=1, format="%d", key="biz_amt")
+                concept_b = st.text_input("Concepto", "Bizum rápido", key="biz_con")
+                submit_bizum = st.form_submit_button("Enviar Dinero al Instante")
+                
+                if submit_bizum:
+                    other_users = [u for u in st.session_state.users.keys() if u != user]
+                    if not other_users:
+                        st.error("No hay otros usuarios registrados en el banco.")
+                    elif user_data["balance"] < amount_b:
+                        st.error("Saldo insuficiente.")
+                    else:
+                        recipient_b = other_users[0]
+                        st.session_state.users[user]["balance"] -= amount_b
+                        st.session_state.users[recipient_b]["balance"] += amount_b
+                        st.session_state.transactions.append({
+                            "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            "sender": user,
+                            "receiver": recipient_b,
+                            "amount": amount_b,
+                            "concept": f"[BIZUM] {concept_b} (Tel: {phone_dest})"
+                        })
+                        save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
+                        st.success(f"¡Bizum de {amount_b:,d} oincalias enviado al teléfono {phone_dest} con éxito!")
 
     # --- VISTA: SIMULADOR DE PRÉSTAMOS ---
     elif choice == "Simulador de Préstamos":
@@ -318,13 +317,12 @@ else:
         
         with st.expander("❓ Preguntas Frecuentes (FAQs)"):
             st.write("**¿Cómo puedo recuperar mi contraseña?**\nPor motivos de seguridad de Banco SRPR, si olvidas tu contraseña debes ponerte en contacto con el administrador global (`bancospr`).")
-            st.write("**¿Tienen comisión las transferencias en Oincalias?**\nNo, todas las transferencias internas dentro de la red del Banco SRPR son totalmente gratuitas e instantáneas.")
+            st.write("**¿Tienen comisión las transferencias o envíos en Oincalias?**\nNo, todas las transferencias y envíos internos dentro de la red del Banco SRPR son totalmente gratuitos e instantáneos.")
             st.write("**¿Cómo funcionan las tarjetas de débito?**\nPuedes crear tarjetas virtuales. Para gastar con ellas, transfiere saldo desde tu cuenta principal.")
 
         st.markdown("---")
         st.subheader("🤖 Asistente Virtual Inteligente (Gemini)")
 
-        # Cargar la API Key directamente de st.secrets de forma segura
         gemini_api_key = None
         try:
             if "GEMINI_API_KEY" in st.secrets:
@@ -340,16 +338,13 @@ else:
             try:
                 from google import genai
                 
-                # Inicializar historial del chat en session_state si no existe
                 if "gemini_chat_history" not in st.session_state:
                     st.session_state.gemini_chat_history = []
 
-                # Mostrar historial de mensajes previos
                 for message in st.session_state.gemini_chat_history:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-                # Entrada de chat del usuario
                 user_prompt = st.chat_input("Pregúntale algo a la IA sobre tu cuenta, saldo o tarjetas...")
                 
                 if user_prompt:
@@ -389,7 +384,7 @@ else:
                             except Exception as e:
                                 st.error(f"Error al conectar con la API de Gemini: {e}")
             except ImportError:
-                st.error("⚠️ La librería `google-genai` no está instalada en este entorno. Instálala ejecutando `pip install google-genai` en tu terminal.")
+                st.error("⚠️ La librería `google-genai` no está instalada en este entorno. Instálala ejecutando `pip install google-genai` en tu terminal o incluyendo `google-genai` en tu archivo `requirements.txt`.")
 
     # --- VISTA: PANEL DE ADMINISTRACIÓN BSRPR ---
     elif choice == "Panel de Administración BSRPR" and user_data["role"] == "admin":
