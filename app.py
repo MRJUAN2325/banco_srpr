@@ -1,6 +1,31 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import json
+import os
+
+DATA_FILE = "bank_data.json"
+
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("users", {}), data.get("transactions", [])
+    else:
+        default_users = {
+            "banco srpr": {"password": "2325", "name": "Banco srpr", "role": "admin", "balance": 1000}
+        }
+        default_txs = []
+        save_data(default_users, default_txs)
+        return default_users, default_txs
+
+def save_data(users, transactions):
+    data = {
+        "users": users,
+        "transactions": transactions
+    }
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 st.set_page_config(
     page_title="Banco SRPR (BSRPR)",
@@ -8,14 +33,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize Session State
-if "users" not in st.session_state:
-    st.session_state.users = {
-        "bancospr": {"password": "2325", "name": "Banco srpr", "role": "admin", "balance": 1000}
-    }
-
-if "transactions" not in st.session_state:
-    st.session_state.transactions = []
+# Initialize Session State from local file persistence
+if "users" not in st.session_state or "transactions" not in st.session_state:
+    users, transactions = load_data()
+    st.session_state.users = users
+    st.session_state.transactions = transactions
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -65,7 +87,7 @@ if not st.session_state.logged_in:
                         "password": new_pass,
                         "name": new_name,
                         "role": "client",
-                        "balance": 10 # Exactamente 10 oincalias de regalo para nuevos usuarios
+                        "balance": 10 # 10 oincalias de regalo para nuevos usuarios
                     }
                     st.session_state.transactions.append({
                         "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -74,6 +96,8 @@ if not st.session_state.logged_in:
                         "amount": 10,
                         "concept": "Bono de bienvenida Banco SRPR (10 oincalias)"
                     })
+                    # Guardar cambios permanentemente en el archivo JSON
+                    save_data(st.session_state.users, st.session_state.transactions)
                     st.success("¡Cuenta creada con éxito! Se han ingresado 10 oincalias de regalo. Ya puedes iniciar sesión.")
 
 # ----------------- DASHBOARD VIEW -----------------
@@ -136,6 +160,8 @@ else:
                         "amount": amount,
                         "concept": concept
                     })
+                    # Guardar cambios permanentemente en el archivo JSON
+                    save_data(st.session_state.users, st.session_state.transactions)
                     st.success(f"¡Transferencia de {amount:,d} oincalias realizada con éxito!")
 
     # --- VISTA: HISTORIAL DE MOVIMIENTOS ---
@@ -152,7 +178,7 @@ else:
 
     # --- VISTA: PANEL DE ADMINISTRACIÓN BSRPR ---
     elif choice == "Panel de Administración BSRPR" and user_data["role"] == "admin":
-        st.title("🛡️ Panel de Control Administrador - Banco SRPR")
+        st.title("🛡️️ Panel de Control Administrador - Banco SRPR")
         st.warning("Estás accediendo a la cuenta administradora global BSRPR. Tienes privilegios de supervisión total sobre los usuarios y el historial.")
         
         tab_admin1, tab_admin2 = st.tabs(["Auditoría de Usuarios", "Historial Global de Transacciones"])
