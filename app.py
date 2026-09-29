@@ -11,7 +11,7 @@ st.set_page_config(
 # Initialize Session State
 if "users" not in st.session_state:
     st.session_state.users = {
-        "bancospr": {"password": "2325", "name": "Banco srpr (Administrador)", "role": "admin", "balance": 1000}
+        "bancospr": {"password": "2325", "name": "Banco srpr", "role": "admin", "balance": 1000}
     }
 
 if "transactions" not in st.session_state:
