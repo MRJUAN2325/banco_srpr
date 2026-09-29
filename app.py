@@ -311,7 +311,7 @@ else:
             df_txs = pd.DataFrame(user_txs)
             st.dataframe(df_txs, use_container_width=True)
 
-    # --- VISTA: AYUDA Y SOPORTE CON ASISTENTE IA (GEMINI) ---
+    # --- VISTA: AYUDA Y SOPORTE CON ASISTENTE IA (GEMINI vía st.secrets) ---
     elif choice == "Ayuda y Soporte":
         st.title("💬 Centro de Ayuda y Asistente IA (Banco SRPR)")
         st.write("Consulta preguntas frecuentes o chatea con nuestro asistente inteligente con IA para resolver dudas sobre tu cuenta.")
@@ -323,15 +323,20 @@ else:
 
         st.markdown("---")
         st.subheader("🤖 Asistente Virtual Inteligente (Gemini)")
-        st.write("Introduce tu clave API de Gemini para activar el chat con la inteligencia artificial que conoce el estado de tu cuenta.")
 
-        # Campo para configurar el Token de Gemini
-        gemini_api_key = st.text_input("Introduce tu Token / API Key de Gemini", type="password", value="")
+        # Cargar la API Key directamente de st.secrets de forma segura
+        gemini_api_key = None
+        try:
+            if "GEMINI_API_KEY" in st.secrets:
+                gemini_api_key = st.secrets["GEMINI_API_KEY"]
+            elif "general" in st.secrets and "GEMINI_API_KEY" in st.secrets["general"]:
+                gemini_api_key = st.secrets["general"]["GEMINI_API_KEY"]
+        except Exception:
+            gemini_api_key = None
 
         if not gemini_api_key:
-            st.warning("⚠️ Introduce una clave API de Gemini válida arriba para habilitar el chat inteligente con tu cuenta.")
+            st.warning("⚠️ No se ha encontrado la clave API de Gemini en los secrets. Por favor, añádela en la sección de **Secrets** de tu panel de Streamlit Cloud con el nombre `GEMINI_API_KEY`.")
         else:
-            # Importación segura de la librería de google-genai
             try:
                 from google import genai
                 
@@ -348,7 +353,6 @@ else:
                 user_prompt = st.chat_input("Pregúntale algo a la IA sobre tu cuenta, saldo o tarjetas...")
                 
                 if user_prompt:
-                    # Añadir mensaje del usuario al historial
                     st.session_state.gemini_chat_history.append({"role": "user", "content": user_prompt})
                     with st.chat_message("user"):
                         st.markdown(user_prompt)
@@ -358,7 +362,6 @@ else:
                             try:
                                 client = genai.Client(api_key=gemini_api_key)
                                 
-                                # Recopilar contexto detallado del usuario para que la IA sepa todo sobre su cuenta
                                 user_cards_info = st.session_state.cards.get(user, [])
                                 user_txs_info = [tx for tx in st.session_state.transactions if tx["sender"] == user or tx["receiver"] == user]
                                 
@@ -375,7 +378,6 @@ else:
                                 Ayuda al cliente amablemente con sus dudas sobre la web, sus saldos, transferencias o tarjetas basándote estrictamente en sus datos reales facilitados arriba.
                                 """
                                 
-                                # Llamada al modelo Gemini (usando flash por defecto)
                                 response = client.models.generate_content(
                                     model="gemini-2.5-flash",
                                     contents=f"{context_system_prompt}\n\nPregunta del usuario: {user_prompt}"
