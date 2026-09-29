@@ -4,27 +4,25 @@ import datetime
 import json
 import os
 
-DATA_FILE = "bank_data_srpr.json"
+DATA_FILE = "bank_data.json"
 
 def load_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            return data.get("users", {}), data.get("transactions", []), data.get("cards", {})
+            return data.get("users", {}), data.get("transactions", [])
     else:
         default_users = {
-            "bancosrpr": {"password": "2325", "name": "Banco srpr", "role": "admin", "balance": 1000}
+            "bancospr": {"password": "2325", "name": "Banco SRPR", "role": "admin", "balance": 1000}
         }
         default_txs = []
-        default_cards = {}
-        save_data(default_users, default_txs, default_cards)
-        return default_users, default_txs, default_cards
+        save_data(default_users, default_txs)
+        return default_users, default_txs
 
-def save_data(users, transactions, cards):
+def save_data(users, transactions):
     data = {
         "users": users,
-        "transactions": transactions,
-        "cards": cards
+        "transactions": transactions
     }
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
@@ -36,11 +34,10 @@ st.set_page_config(
 )
 
 # Initialize Session State from local file persistence
-if "users" not in st.session_state or "transactions" not in st.session_state or "cards" not in st.session_state:
-    users, transactions, cards = load_data()
+if "users" not in st.session_state or "transactions" not in st.session_state:
+    users, transactions = load_data()
     st.session_state.users = users
     st.session_state.transactions = transactions
-    st.session_state.cards = cards
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -99,7 +96,7 @@ if not st.session_state.logged_in:
                         "amount": 10,
                         "concept": "Bono de bienvenida Banco SRPR (10 oincalias)"
                     })
-                    save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
+                    save_data(st.session_state.users, st.session_state.transactions)
                     st.success("¡Cuenta creada con éxito! Se han ingresado 10 oincalias de regalo. Ya puedes iniciar sesión.")
 
 # ----------------- DASHBOARD VIEW -----------------
@@ -114,7 +111,6 @@ else:
     
     menu = [
         "Mis Cuentas y Saldo", 
-        "Mis Tarjetas", 
         "Enviar Dinero", 
         "Simulador de Préstamos", 
         "Historial de Movimientos",
@@ -142,80 +138,7 @@ else:
             st.metric(label="Cuenta Principal", value=f"BSRPR-ES99-{user.upper()}-001")
             
         st.markdown("---")
-        st.info("💡 Gestiona y activa tus tarjetas de débito o de ahorros desde la sección 'Mis Tarjetas' en el menú lateral.")
-
-    # --- VISTA: MIS TARJETAS ---
-    elif choice == "Mis Tarjetas":
-        st.title("💳 Mis Tarjetas de Débito")
-        st.write("Crea, activa y gestiona el saldo de tus tarjetas personales.")
-
-        user_cards = st.session_state.cards.get(user, [])
-
-        # Mostrar tarjetas existentes
-        if user_cards:
-            st.subheader("Tarjetas Activas")
-            for idx, card in enumerate(user_cards):
-                card_bal = card.get('balance', 0)
-                with st.expander(f"💳 {card['name']} ({card['type'].capitalize()}) - Saldo: {card_bal:,d} Oincalias"):
-                    st.write(f"**Número de Tarjeta:** **** **** **** {1000 + idx}")
-                    st.write(f"**Tipo:** Tarjeta de Débito - {card['type'].capitalize()}")
-                    st.write(f"**Saldo en Tarjeta:** {card_bal:,d} Oincalias")
-                    
-                    col_m1, col_m2 = st.columns(2)
-                    with col_m1:
-                        with st.form(f"add_fund_{idx}"):
-                            amt_add = st.number_input("Meter oincalias a la tarjeta", min_value=1, max_value=int(user_data['balance']) if user_data['balance'] > 0 else 1, step=1, format="%d", key=f"add_{idx}")
-                            btn_add = st.form_submit_button("Ingresar a Tarjeta")
-                            if btn_add:
-                                if user_data['balance'] < amt_add:
-                                    st.error("No tienes suficiente saldo en tu cuenta principal.")
-                                else:
-                                    user_data['balance'] -= amt_add
-                                    card['balance'] = card_bal + amt_add
-                                    save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
-                                    st.success(f"¡Has ingresado {amt_add:,d} oincalias a la tarjeta '{card['name']}'!")
-                                    st.rerun()
-                    with col_m2:
-                        with st.form(f"retirar_fund_{idx}"):
-                            amt_ret = st.number_input("Retirar oincalias de la tarjeta", min_value=1, max_value=int(card_bal) if card_bal > 0 else 1, step=1, format="%d", key=f"ret_{idx}")
-                            btn_ret = st.form_submit_button("Retirar a Cuenta Principal")
-                            if btn_ret:
-                                if card_bal < amt_ret:
-                                    st.error("La tarjeta no tiene suficiente saldo.")
-                                else:
-                                    card['balance'] = card_bal - amt_ret
-                                    user_data['balance'] += amt_ret
-                                    save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
-                                    st.success(f"¡Has retirado {amt_ret:,d} oincalias de la tarjeta a tu cuenta principal!")
-                                    st.rerun()
-        else:
-            st.info("No tienes ninguna tarjeta activa todavía.")
-
-        st.markdown("---")
-        st.subheader("➕ Activar Nueva Tarjeta")
-        with st.form("new_card_form"):
-            card_name = st.text_input("Nombre de la Tarjeta (ej. Mi Tarjeta Personal, Ahorros Viaje)")
-            card_type = st.selectbox("Tipo de Tarjeta de Débito", ["Normal", "Ahorros"])
-            card_password_sign = st.text_input("Firma esto con tu contraseña", type="password")
-            submit_card = st.form_submit_button("Activar Tarjeta Nueva")
-
-            if submit_card:
-                if not card_name:
-                    st.warning("Por favor, ponle un nombre a la tarjeta.")
-                elif card_password_sign != user_data["password"]:
-                    st.error("Contraseña incorrecta. Firma con tu contraseña válida para poder crear la tarjeta.")
-                else:
-                    if user not in st.session_state.cards:
-                        st.session_state.cards[user] = []
-                    
-                    st.session_state.cards[user].append({
-                        "name": card_name,
-                        "type": card_type.lower(),
-                        "balance": 0
-                    })
-                    save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
-                    st.success(f"¡Tarjeta '{card_name}' ({card_type}) activada con éxito!")
-                    st.rerun()
+        st.info("💡 Utiliza el menú lateral para realizar transferencias, envíos rápidos o consultar tus movimientos.")
 
     # --- VISTA: ENVIAR DINERO (TRANSFERENCIA + BIZUM UNIFICADOS) ---
     elif choice == "Enviar Dinero":
@@ -246,7 +169,7 @@ else:
                             "amount": amount,
                             "concept": concept
                         })
-                        save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
+                        save_data(st.session_state.users, st.session_state.transactions)
                         st.success(f"¡Transferencia de {amount:,d} oincalias realizada con éxito!")
         else:
             st.subheader("⚡ Envío Rápido (Bizum)")
@@ -273,7 +196,7 @@ else:
                             "amount": amount_b,
                             "concept": f"[BIZUM] {concept_b} (Tel: {phone_dest})"
                         })
-                        save_data(st.session_state.users, st.session_state.transactions, st.session_state.cards)
+                        save_data(st.session_state.users, st.session_state.transactions)
                         st.success(f"¡Bizum de {amount_b:,d} oincalias enviado al teléfono {phone_dest} con éxito!")
 
     # --- VISTA: SIMULADOR DE PRÉSTAMOS ---
@@ -318,7 +241,6 @@ else:
         with st.expander("❓ Preguntas Frecuentes (FAQs)"):
             st.write("**¿Cómo puedo recuperar mi contraseña?**\nPor motivos de seguridad de Banco SRPR, si olvidas tu contraseña debes ponerte en contacto con el administrador global (`bancospr`).")
             st.write("**¿Tienen comisión las transferencias o envíos en Oincalias?**\nNo, todas las transferencias y envíos internos dentro de la red del Banco SRPR son totalmente gratuitos e instantáneos.")
-            st.write("**¿Cómo funcionan las tarjetas de débito?**\nPuedes crear tarjetas virtuales. Para gastar con ellas, transfiere saldo desde tu cuenta principal.")
 
         st.markdown("---")
         st.subheader("🤖 Asistente Virtual Inteligente (Gemini)")
@@ -345,7 +267,7 @@ else:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-                user_prompt = st.chat_input("Pregúntale algo a la IA sobre tu cuenta, saldo o tarjetas...")
+                user_prompt = st.chat_input("Pregúntale algo a la IA sobre tu cuenta o saldo...")
                 
                 if user_prompt:
                     st.session_state.gemini_chat_history.append({"role": "user", "content": user_prompt})
@@ -357,7 +279,6 @@ else:
                             try:
                                 client = genai.Client(api_key=gemini_api_key)
                                 
-                                user_cards_info = st.session_state.cards.get(user, [])
                                 user_txs_info = [tx for tx in st.session_state.transactions if tx["sender"] == user or tx["receiver"] == user]
                                 
                                 context_system_prompt = f"""
@@ -367,10 +288,9 @@ else:
                                 - Nombre completo: {user_data['name']}
                                 - Rol: {user_data['role']}
                                 - Saldo en cuenta principal: {user_data['balance']} Oincalias
-                                - Tarjetas activas: {user_cards_info}
                                 - Últimas transacciones del usuario: {user_txs_info[-5:] if user_txs_info else 'Ninguna'}
                                 
-                                Ayuda al cliente amablemente con sus dudas sobre la web, sus saldos, transferencias o tarjetas basándote estrictamente en sus datos reales facilitados arriba.
+                                Ayuda al cliente amablemente con sus dudas sobre la web, sus saldos o transferencias basándote estrictamente en sus datos reales facilitados arriba.
                                 """
                                 
                                 response = client.models.generate_content(
