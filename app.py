@@ -13,7 +13,7 @@ def load_data():
             return data.get("users", {}), data.get("transactions", []), data.get("cards", {})
     else:
         default_users = {
-            "bancospr": {"password": "2325", "name": "Banco SRPR", "role": "admin", "balance": 1000}
+            "bancospr": {"password": "2325", "name": "Bancosrpr", "role": "admin", "balance": 1000}
         }
         default_txs = []
         default_cards = {}
