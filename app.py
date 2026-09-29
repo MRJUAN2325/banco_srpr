@@ -293,8 +293,9 @@ else:
                                 Ayuda al cliente amablemente con sus dudas sobre la web, sus saldos o transferencias basándote estrictamente en sus datos reales facilitados arriba.
                                 """
                                 
+                                # Actualizado al modelo actual de Gemini
                                 response = client.models.generate_content(
-                                    model="gemini-2.5-flash",
+                                    model="gemini-3.8-flash",
                                     contents=f"{context_system_prompt}\n\nPregunta del usuario: {user_prompt}"
                                 )
                                 
@@ -304,7 +305,7 @@ else:
                             except Exception as e:
                                 st.error(f"Error al conectar con la API de Gemini: {e}")
             except ImportError:
-                st.error("⚠️ La librería `google-genai` no está instalada en este entorno. Instálala ejecutando `pip install google-genai` en tu terminal o incluyendo `google-genai` en tu archivo `requirements.txt`.")
+                st.error("⚠️️ La librería `google-genai` no está instalada en este entorno. Instálala ejecutando `pip install google-genai` en tu terminal o incluyendo `google-genai` en tu archivo `requirements.txt`.")
 
     # --- VISTA: PANEL DE ADMINISTRACIÓN BSRPR ---
     elif choice == "Panel de Administración BSRPR" and user_data["role"] == "admin":
